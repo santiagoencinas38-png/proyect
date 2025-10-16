@@ -1,0 +1,256 @@
+import os
+from typing import List, Dict
+
+from io_archivos import leer_csv, escribir_csv, guardar_binario, cargar_binario
+from inventario import (
+    crear_producto, alta_producto, baja_producto, modificar_producto,
+    reabastecer, registrar_venta, reset_vendidos_dia, productos_bajo_stock
+)
+from busquedas_ordenamientos import (
+    busqueda_lineal_por_nombre, ordenar_por_codigo, busqueda_binaria_por_codigo,
+    ordenar_por_precio_burbuja, ordenar_por_nombre_seleccion, ordenar_por_stock_desc
+)
+from reportes import (
+    top_3_mas_vendidos, productos_bajo_stock_report,
+    resumen_monto_dia, resumen_semanal
+)
+
+
+DATOS_CSV = "datos.csv"
+DATOS_BIN = "datos.bin"
+ALERTAS_CSV = "alertas.csv"
+
+
+def crear_demo() -> List[Dict]:
+    demo = [
+        crear_producto("A1-001", "Regla 30cm", 6.50, 20, 5),
+        crear_producto("B1-010", "Hojas A4 (50)", 8.00, 12, 4),
+        crear_producto("C2-200", "Lápiz HB", 7.00, 25, 6),
+        crear_producto("D1-100", "Cuaderno 100 hojas", 15.00, 10, 3),
+        crear_producto("E2-333", "Goma de borrar", 3.50, 30, 5),
+        crear_producto("F3-420", "Bolígrafo azul", 4.00, 40, 6),
+        crear_producto("G4-777", "Marcador permanente", 12.00, 8, 2),
+        crear_producto("H5-999", "Pegamento", 10.50, 6, 2),
+        crear_producto("I6-123", "Caramelos surtidos", 2.00, 50, 10),
+        crear_producto("J7-321", "Bebida 500ml", 12.50, 15, 5),
+    ]
+    return demo
+
+
+def cargar_datos() -> List[Dict]:
+    productos = leer_csv(DATOS_CSV)
+    if not productos:
+        print("[INFO] No se encontró datos.csv o estaba vacío/corrupto. Se cargará demo.")
+        productos = crear_demo()
+    # intentar cargar snapshot binario (opcional)
+    bin_obj = cargar_binario(DATOS_BIN)
+    if isinstance(bin_obj, list) and bin_obj:
+        print("[INFO] Snapshot binario encontrado. Se usará snapshot (datos.bin).")
+        productos = bin_obj
+    return productos
+
+
+def exportar_alertas(productos: List[Dict]) -> None:
+    bajos = productos_bajo_stock(productos)
+    if not bajos:
+        print("No hay productos en nivel de alerta.")
+        return
+    escribir_csv(ALERTAS_CSV, bajos)
+    print(f"Exportadas {len(bajos)} filas a {ALERTAS_CSV}")
+
+
+def inicializar_matriz_ventas() -> List[List[float]]:
+    # 7 días x 3 franjas (mañana, tarde, noche)
+    return [[0.0 for _ in range(3)] for _ in range(7)]
+
+
+def pedir_entero(prompt: str, minimo: int = None, maximo: int = None) -> int:
+    while True:
+        try:
+            v = int(input(prompt).strip())
+            if minimo is not None and v < minimo:
+                print(f"Ingrese un número >= {minimo}")
+                continue
+            if maximo is not None and v > maximo:
+                print(f"Ingrese un número <= {maximo}")
+                continue
+            return v
+        except ValueError:
+            print("Entrada inválida. Ingrese un entero.")
+
+
+def pedir_flotante(prompt: str, minimo: float = None) -> float:
+    while True:
+        try:
+            v = float(input(prompt).strip())
+            if minimo is not None and v < minimo:
+                print(f"Ingrese un número >= {minimo}")
+                continue
+            return v
+        except ValueError:
+            print("Entrada inválida. Ingrese un número (decimales permitidos).")
+
+
+def mostrar_productos(productos: List[Dict]) -> None:
+    print("-" * 72)
+    print(f"{'CÓDIGO':10} | {'NOMBRE':30} | {'PRECIO':>7} | {'STOCK':>5} | {'MIN':>3} | {'VEND.DIA':>8}")
+    print("-" * 72)
+    for p in productos:
+        print(f"{p['codigo']:10} | {p['nombre'][:30]:30} | {p['precio']:7.2f} | {p['stock']:5d} | {p['stock_minimo']:3d} | {p.get('vendidos_hoy',0):8d}")
+    print("-" * 72)
+
+
+def menu_principal():
+    productos = cargar_datos()
+    ventas_semana = inicializar_matriz_ventas()
+    while True:
+        print("\nKIOSKO UCB - MENÚ PRINCIPAL")
+        print("1) Mostrar productos")
+        print("2) Alta producto")
+        print("3) Baja producto")
+        print("4) Modificar producto")
+        print("5) Reabastecer")
+        print("6) Registrar venta")
+        print("7) Busquedas")
+        print("8) Ordenamientos (para reportes)")
+        print("9) Reportes")
+        print("10) Exportar alertas (CSV)")
+        print("11) Guardar ahora")
+        print("0) Guardar y salir")
+        opcion = input("Elija una opción: ").strip()
+        if opcion == "1":
+            mostrar_productos(productos)
+        elif opcion == "2":
+            codigo = input("Código: ").strip()
+            nombre = input("Nombre: ").strip()
+            precio = pedir_flotante("Precio: ", minimo=0)
+            stock = pedir_entero("Stock inicial: ", minimo=0)
+            stock_min = pedir_entero("Stock mínimo: ", minimo=0)
+            prod = crear_producto(codigo, nombre, precio, stock, stock_min)
+            ok = alta_producto(productos, prod)
+            print("Alta realizada." if ok else "Error: código ya existe.")
+        elif opcion == "3":
+            codigo = input("Código a dar de baja: ").strip()
+            ok = baja_producto(productos, codigo)
+            print("Baja realizada." if ok else "No se encontró el producto.")
+        elif opcion == "4":
+            codigo = input("Código a modificar: ").strip()
+            print("Dejar vacío para no cambiar un campo.")
+            nombre = input("Nuevo nombre: ").strip()
+            precio_in = input("Nuevo precio: ").strip()
+            stock_in = input("Nuevo stock: ").strip()
+            stockmin_in = input("Nuevo stock_minimo: ").strip()
+            kwargs = {}
+            if nombre:
+                kwargs["nombre"] = nombre
+            if precio_in:
+                try:
+                    kwargs["precio"] = float(precio_in)
+                except ValueError:
+                    print("Precio inválido, se omitirá.")
+            if stock_in:
+                try:
+                    kwargs["stock"] = int(stock_in)
+                except ValueError:
+                    print("Stock inválido, se omitirá.")
+            if stockmin_in:
+                try:
+                    kwargs["stock_minimo"] = int(stockmin_in)
+                except ValueError:
+                    print("stock_minimo inválido, se omitirá.")
+            ok = modificar_producto(productos, codigo, **kwargs)
+            print("Modificación exitosa." if ok else "No se encontró el producto.")
+        elif opcion == "5":
+            codigo = input("Código a reabastecer: ").strip()
+            cantidad = pedir_entero("Cantidad a añadir: ", minimo=1)
+            ok = reabastecer(productos, codigo, cantidad)
+            print("Reabastecido." if ok else "Error: código no encontrado o cantidad inválida.")
+        elif opcion == "6":
+            codigo = input("Código vendido: ").strip()
+            cantidad = pedir_entero("Cantidad vendida: ", minimo=1)
+            ok, monto = registrar_venta(productos, codigo, cantidad)
+            if ok:
+                print(f"Venta registrada. Monto: {monto:.2f}")
+                # pedir día/franja para sumar a matriz semanal
+                dia = pedir_entero("Día (0:Dom ... 6:Sáb): ", minimo=0, maximo=6)
+                print("Franjas: 0=mañana, 1=tarde, 2=noche")
+                franja = pedir_entero("Franja: ", minimo=0, maximo=2)
+                ventas_semana[dia][franja] += monto
+            else:
+                print("Error: no existe el producto o stock insuficiente.")
+        elif opcion == "7":
+            print("a) Búsqueda lineal por nombre")
+            print("b) Búsqueda binaria por código (requiere ordenar por código)")
+            sub = input("Elija: ").strip().lower()
+            if sub == "a":
+                nombre = input("Nombre (o parte) a buscar: ").strip()
+                encontrados = busqueda_lineal_por_nombre(productos, nombre)
+                if encontrados:
+                    mostrar_productos(encontrados)
+                else:
+                    print("No se encontraron coincidencias.")
+            elif sub == "b":
+                ordenar_por_codigo(productos)
+                codigo = input("Código a buscar: ").strip()
+                encontrado = busqueda_binaria_por_codigo(productos, codigo)
+                if encontrado:
+                    mostrar_productos([encontrado])
+                else:
+                    print("No encontrado.")
+            else:
+                print("Opción inválida.")
+        elif opcion == "8":
+            print("Ordenar para reportes:")
+            print("1) Por precio (asc) [burbuja]")
+            print("2) Por nombre (asc) [selección]")
+            print("3) Por stock (desc)")
+            choice = input("Elija: ").strip()
+            if choice == "1":
+                ordenar_por_precio_burbuja(productos)
+                print("Ordenado por precio ascendente.")
+            elif choice == "2":
+                ordenar_por_nombre_seleccion(productos)
+                print("Ordenado por nombre ascendente.")
+            elif choice == "3":
+                ordenar_por_stock_desc(productos)
+                print("Ordenado por stock descendente.")
+            else:
+                print("Opción inválida.")
+        elif opcion == "9":
+            print("REPORTES:")
+            mostrar_productos(productos)
+            top3 = top_3_mas_vendidos(productos)
+            print("\nTop 3 más vendidos del día:")
+            mostrar_productos(top3)
+            bajos = productos_bajo_stock_report(productos)
+            print("\nProductos bajo stock mínimo:")
+            if bajos:
+                mostrar_productos(bajos)
+            else:
+                print("No hay productos bajo stock mínimo.")
+            monto_total, ticket_prom = resumen_monto_dia(productos)
+            print(f"\nMonto total del día: {monto_total:.2f}")
+            print(f"Ticket promedio (por item vendido): {ticket_prom:.2f}")
+            resumen = resumen_semanal(ventas_semana)
+            print("\nResumen semanal:")
+            for d, total in enumerate(resumen["totales_por_dia"]):
+                print(f" Día {d}: {total:.2f}")
+            print(" Totales por franja (mañana,tarde,noche):", resumen["totales_por_franja"])
+            print(" Total general:", resumen["total_general"])
+        elif opcion == "10":
+            exportar_alertas(productos)
+        elif opcion == "11":
+            escribir_csv(DATOS_CSV, productos)
+            guardar_binario(DATOS_BIN, productos)
+            print("Guardado realizado.")
+        elif opcion == "0":
+            escribir_csv(DATOS_CSV, productos)
+            guardar_binario(DATOS_BIN, productos)
+            print("Guardado final. Saliendo...")
+            break
+        else:
+            print("Opción inválida. Intente nuevamente.")
+
+
+if __name__ == "__main__":
+    menu_principal()
