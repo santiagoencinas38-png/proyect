@@ -1,0 +1,64 @@
+from typing import List, Dict, Tuple, Any
+
+def top_3_mas_vendidos(productos: List[Dict]) -> List[Dict]:
+    """Retorna los 3 productos con más 'vendidos_hoy' usando un ordenamiento temporal."""
+    # Crea una copia para no modificar el orden original del inventario
+    productos_copia = sorted(
+        productos, 
+        key=lambda p: p.get("vendidos_hoy", 0), 
+        reverse=True
+    )
+    return productos_copia[:3]
+
+
+def productos_bajo_stock_report(productos: List[Dict]) -> List[Dict]:
+    """Retorna una lista de productos cuyo stock es menor al stock_minimo."""
+    return [
+        p for p in productos 
+        if p["stock"] < p["stock_minimo"]
+    ]
+
+
+def resumen_monto_dia(productos: List[Dict]) -> Tuple[float, float]:
+    """
+    Calcula el monto total vendido hoy y el ticket promedio por item vendido.
+    Retorna (monto_total, ticket_promedio).
+    """
+    monto_total = 0.0
+    items_vendidos = 0
+    
+    for p in productos:
+        # Se asume que el monto total es (vendidos_hoy * precio)
+        monto_total += p.get("vendidos_hoy", 0) * p["precio"]
+        items_vendidos += p.get("vendidos_hoy", 0)
+        
+    monto_total = round(monto_total, 2)
+    
+    if items_vendidos > 0:
+        # Ticket promedio se calcula por ítem vendido (total / cantidad de ítems)
+        ticket_promedio = round(monto_total / items_vendidos, 2)
+    else:
+        ticket_promedio = 0.0
+
+    return monto_total, ticket_promedio
+
+
+def resumen_semanal(ventas_semana: List[List[float]]) -> Dict[str, Any]:
+    """
+    Procesa la matriz 2D de ventas [días] x [franjas] para obtener totales.
+    """
+    totales_por_dia = [round(sum(dia_ventas), 2) for dia_ventas in ventas_semana]
+    
+    # Totales por franja: Transponer la matriz (franja 0, 1, 2 en todos los días)
+    totales_por_franja = [
+        round(sum(ventas_semana[d][f] for d in range(len(ventas_semana))), 2)
+        for f in range(3) # 3 franjas: mañana, tarde, noche
+    ]
+    
+    total_general = round(sum(totales_por_dia), 2)
+
+    return {
+        "total_general": total_general,
+        "totales_por_dia": totales_por_dia,
+        "totales_por_franja": totales_por_franja
+    }
