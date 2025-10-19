@@ -1,0 +1,93 @@
+import csv
+import pickle
+import os
+from typing import List, Dict, Any
+
+# Nombres de campos para el CSV (Requisito 1)
+CSV_FIELDS = ["codigo", "nombre", "precio", "stock", "stock_minimo", "vendidos_hoy"]
+
+
+def leer_csv(path: str) -> List[Dict]:
+    """Carga productos desde un archivo CSV. Usa try/except para validar filas y el archivo."""
+    productos = []
+    try:
+        # Usa 'utf-8' por ser un archivo de texto estándar
+        with open(path, mode="r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                try:
+                    # Intenta convertir los valores a sus tipos de datos correctos
+                    producto = {
+                        "codigo": str(row.get("codigo", "")).strip(),
+                        "nombre": str(row.get("nombre", "")).strip(),
+                        "precio": round(float(row.get("precio", 0)), 2),
+                        "stock": int(row.get("stock", 0)),
+                        "stock_minimo": int(row.get("stock_minimo", 0)),
+                        "vendidos_hoy": int(row.get("vendidos_hoy", 0)),
+                    }
+                    productos.append(producto)
+                except ValueError:
+                    # Captura si float() o int() fallan (fila corrupta) -> saltar
+                    print(f"[ADVERTENCIA] Fila corrupta en CSV: {row}")
+                    continue
+    except FileNotFoundError:
+        # Si el archivo no existe, devuelve lista vacía. main.py se encargará de crear el demo.
+        return []
+    except Exception as e:
+        print(f"[ERROR] Problema general al leer CSV: {e}")
+        return []
+    return productos
+
+
+def escribir_csv(path: str, productos: List[Dict]) -> None:
+    """Guarda la lista completa de productos en el archivo CSV."""
+    try:
+        with open(path, mode="w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
+            writer.writeheader()
+            writer.writerows(productos)
+    except Exception as e:
+        print(f"[ERROR] No se pudo escribir CSV: {e}")
+
+
+def guardar_binario(path: str, data: Any) -> None:
+    """Guarda cualquier objeto Python (lista de productos) en formato binario usando pickle."""
+    try:
+        with open(path, "wb") as f: # 'wb' = write binary
+            pickle.dump(data, f)
+    except Exception as e:
+        print(f"[ERROR] No se pudo guardar binario: {e}")
+
+
+def cargar_binario(path: str) -> Any:
+    """Carga y retorna el objeto guardado desde el archivo binario."""
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, "rb") as f: # 'rb' = read binary
+            return pickle.load(f)
+    except Exception as e:
+        print(f"[ERROR] No se pudo cargar binario: {e}")
+        return None
+
+
+def exportar_alertas(productos: List[Dict], path: str = "alertas.csv") -> None:
+    """Respaldo selectivo: Exporta solo los productos que están bajo stock mínimo."""
+    alertas = [
+        p for p in productos 
+        if p["stock"] < p["stock_minimo"]
+    ]
+    
+    if not alertas:
+        print("No hay productos bajo stock mínimo para exportar.")
+        return
+
+    try:
+        # Los campos del CSV de alertas son los mismos del inventario.
+        with open(path, mode="w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
+            writer.writeheader()
+            writer.writerows(alertas)
+        print(f" ¡Éxito! {len(alertas)} alertas exportadas a '{path}'.")
+    except Exception as e:
+        print(f"[ERROR] No se pudo exportar alertas: {e}")
