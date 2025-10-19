@@ -1,72 +1,89 @@
 from typing import List, Dict, Optional
 
 
-def busqueda_lineal_por_nombre(productos: List[Dict], nombre: str) -> List[Dict]:
-    nombre = nombre.lower().strip()
-    encontrados = [p for p in productos if nombre in p["nombre"].lower()]
+def busqueda_lineal_por_nombre(productos: List[Dict], nombre_buscado: str) -> List[Dict]:
+    """
+    Busqueda lineal: busca productos que contengan la 'nombre_buscado'
+    (búsqueda de subcadena, sensible a mayúsculas/minúsculas).
+    """
+    nombre_buscado = nombre_buscado.lower().strip()
+    encontrados = []
+    for p in productos:
+        if nombre_buscado in p["nombre"].lower():
+            encontrados.append(p)
     return encontrados
 
 
 def ordenar_por_codigo(productos: List[Dict]) -> None:
-    """Ordenamiento simple in-place por codigo usando selección (para binaria)."""
+    """Ordena in-place la lista por 'codigo' usando el algoritmo de Selección. Requerido para Binaria."""
     n = len(productos)
     for i in range(n - 1):
         min_idx = i
+        # Encuentra el elemento mínimo en el resto del arreglo
         for j in range(i + 1, n):
             if productos[j]["codigo"] < productos[min_idx]["codigo"]:
                 min_idx = j
-        if min_idx != i:
-            productos[i], productos[min_idx] = productos[min_idx], productos[i]
+        # Intercambia el elemento mínimo encontrado con el elemento actual
+        productos[i], productos[min_idx] = productos[min_idx], productos[i]
 
 
 def busqueda_binaria_por_codigo(productos_sorted: List[Dict], codigo: str) -> Optional[Dict]:
-    """Requiere productos ordenados por 'codigo' ascendente."""
-    left = 0
-    right = len(productos_sorted) - 1
-    codigo = codigo.strip()
+    """
+    Busqueda binaria: requiere que la lista esté ORDENADA por 'codigo'.
+    Retorna el diccionario del producto o None si no se encuentra.
+    """
+    left, right = 0, len(productos_sorted) - 1
+    codigo = codigo.strip().upper()
+
     while left <= right:
         mid = (left + right) // 2
         mid_code = productos_sorted[mid]["codigo"]
+
         if mid_code == codigo:
-            return productos_sorted[mid]
+            return productos_sorted[mid] # ¡Encontrado!
         elif mid_code < codigo:
-            left = mid + 1
+            left = mid + 1 # Buscar en la mitad derecha
         else:
-            right = mid - 1
+            right = mid - 1 # Buscar en la mitad izquierda
     return None
 
 
 def ordenar_por_precio_burbuja(productos: List[Dict]) -> None:
-    """Orden ascendente por precio usando burbuja."""
+    """Ordena ascendente por 'precio' usando el algoritmo de Burbuja (Bubble Sort)."""
     n = len(productos)
     for i in range(n):
         swapped = False
         for j in range(0, n - 1 - i):
             if productos[j]["precio"] > productos[j + 1]["precio"]:
+                # Swap (intercambio)
                 productos[j], productos[j + 1] = productos[j + 1], productos[j]
                 swapped = True
+        # Optimización: si no hubo swaps en un paso, la lista está ordenada
         if not swapped:
             break
 
 
 def ordenar_por_nombre_seleccion(productos: List[Dict]) -> None:
-    """Orden ascendente por nombre usando selección."""
+    """Ordena ascendente por 'nombre' usando el algoritmo de Selección (Selection Sort)."""
     n = len(productos)
     for i in range(n - 1):
         min_idx = i
+        # Busca el nombre alfabéticamente menor
         for j in range(i + 1, n):
+            # Usar .lower() para ordenar sin distinguir mayúsculas/minúsculas
             if productos[j]["nombre"].lower() < productos[min_idx]["nombre"].lower():
                 min_idx = j
-        if min_idx != i:
-            productos[i], productos[min_idx] = productos[min_idx], productos[i]
+        # Coloca el elemento más pequeño en la posición actual
+        productos[i], productos[min_idx] = productos[min_idx], productos[i]
 
 
 def ordenar_por_stock_desc(productos: List[Dict]) -> None:
-    """Orden descendente por stock usando burbuja (simple)."""
+    """Ordena descendente por 'stock' usando el algoritmo de Burbuja."""
     n = len(productos)
     for i in range(n):
         swapped = False
         for j in range(0, n - 1 - i):
+            # Cambia > por < para obtener orden descendente
             if productos[j]["stock"] < productos[j + 1]["stock"]:
                 productos[j], productos[j + 1] = productos[j + 1], productos[j]
                 swapped = True
