@@ -1,0 +1,11 @@
+codigo,nombre,precio,stock,stock_minimo,vendidos_hoy
+A101,Bolígrafo BIC negro,4.00,50,10,0
+B205,Cuaderno A4 100 hojas,18.50,15,5,0
+C310,Goma de borrar miga,2.50,30,8,0
+D404,Resaltador amarillo,7.00,25,5,0
+E501,Chocolatina Snickers,5.50,60,15,0
+F620,Agua mineral 600ml,8.00,40,10,0
+G777,Bocadillo de queso,12.00,20,5,0
+H800,Calculadora básica,55.90,5,2,0
+I901,Libreta espiral A5,14.00,10,3,0
+J010,USB 32GB,45.00,8,3,0
