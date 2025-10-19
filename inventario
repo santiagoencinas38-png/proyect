@@ -1,0 +1,102 @@
+from typing import List, Dict, Tuple, Any
+
+
+def crear_producto(codigo: str, nombre: str, precio: float, stock: int, stock_minimo: int) -> Dict:
+    """
+    Define y crea un diccionario de producto con los campos requeridos.
+    Aplica validación básica y redondeo.
+    """
+    return {
+        "codigo": codigo.strip().upper(), # Estandariza el código
+        "nombre": nombre.strip(),
+        "precio": round(float(precio), 2),
+        "stock": max(0, int(stock)), # Previene stock negativo
+        "stock_minimo": max(0, int(stock_minimo)), # Previene stock mínimo negativo
+        "vendidos_hoy": 0,
+    }
+
+
+def alta_producto(productos: List[Dict], producto: Dict) -> bool:
+    """Agrega un producto a la lista si su código no existe (evita duplicados)."""
+    if any(p["codigo"] == producto["codigo"] for p in productos):
+        return False # Código duplicado
+    productos.append(producto)
+    return True
+
+
+def baja_producto(productos: List[Dict], codigo: str) -> bool:
+    """Elimina un producto por su código."""
+    for i, p in enumerate(productos):
+        if p["codigo"] == codigo.upper():
+            productos.pop(i)
+            return True
+    return False
+
+
+def modificar_producto(productos: List[Dict], codigo: str, **kwargs: Any) -> bool:
+    """
+    Modifica el producto por su código, aceptando parámetros nombrados
+    (ej: modificar_producto(lista, 'A101', precio=5.00, stock_minimo=10)).
+    """
+    for p in productos:
+        if p["codigo"] == codigo.upper():
+            if "nombre" in kwargs:
+                p["nombre"] = kwargs["nombre"].strip()
+            if "precio" in kwargs:
+                p["precio"] = round(float(kwargs["precio"]), 2)
+            if "stock" in kwargs:
+                # Usa max(0,...) para garantizar la robustez
+                p["stock"] = max(0, int(kwargs["stock"]))
+            if "stock_minimo" in kwargs:
+                p["stock_minimo"] = max(0, int(kwargs["stock_minimo"]))
+            return True
+    return False
+
+
+def reabastecer(productos: List[Dict], codigo: str, cantidad: int) -> bool:
+    """Aumenta el stock de un producto dado su código."""
+    cantidad = int(cantidad)
+    if cantidad <= 0:
+        return False
+        
+    for p in productos:
+        if p["codigo"] == codigo.upper():
+            p["stock"] += cantidad
+            return True
+    return False
+
+
+def registrar_venta(productos: List[Dict], codigo: str, cantidad: int, ventas_semana: List[List[float]], dia_idx: int, franja_idx: int) -> Tuple[bool, float]:
+    """
+    Registra una venta, descuenta stock, aumenta 'vendidos_hoy' y actualiza la matriz 2D.
+    Retorna (ok: bool, monto_total: float).
+    """
+    cantidad = int(cantidad)
+    if cantidad <= 0:
+        return False, 0.0
+
+    for p in productos:
+        if p["codigo"] == codigo.upper():
+            if p["stock"] < cantidad:
+                # Validacion de stock (Requisito de Robustez)
+                return False, 0.0 
+            
+            p["stock"] -= cantidad
+            # Actualiza vendidos_hoy (necesario para reportes)
+            p["vendidos_hoy"] = p.get("vendidos_hoy", 0) + cantidad
+            
+            total_venta = round(p["precio"] * cantidad, 2)
+            
+            # Actualiza Matriz 2D (Requisito de Arreglos 2D)
+            if 0 <= dia_idx < 7 and 0 <= franja_idx < 3:
+                 ventas_semana[dia_idx][franja_idx] += total_venta
+
+            return True, total_venta
+            
+    return False, 0.0 # Producto no encontrado
+
+
+def reset_vendidos_dia(productos: List[Dict]) -> None:
+    """Resetea el contador de vendidos_hoy al iniciar una nueva sesión o día."""
+    for p in productos:
+        p["vendidos_hoy"] = 0
